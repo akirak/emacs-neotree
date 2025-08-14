@@ -42,9 +42,6 @@
 ;; Constants
 ;;
 
-(defconst neo-buffer-name " *NeoTree*"
-  "Name of the buffer where neotree shows directory contents.")
-
 (defconst neo-dir
   (expand-file-name (if load-file-name
                         (file-name-directory load-file-name)
@@ -708,10 +705,15 @@ The car of the pair will store fullpath, and cdr will store line number.")
 ;; Global methods
 ;;
 
-(defun neo-global--window-exists-p ()
-  "Return non-nil if neotree window exists."
-  (and (not (null (window-buffer neo-global--window)))
-       (eql (window-buffer neo-global--window) (neo-global--get-buffer))))
+(defun neotree-project-buffer ()
+  (project-prefixed-buffer-name "Neotree"))
+
+(defun neotree-project-window ()
+  "Return the window for the neotree if it exists."
+  (when-let* ((buffer (get-buffer (neotree-project-buffer)))
+              (window (get-buffer-window buffer)))
+    (when (window-live-p window)
+      window)))
 
 (defun neo-global--select-window ()
   "Select the NeoTree window."
@@ -723,13 +725,9 @@ The car of the pair will store fullpath, and cdr will store line number.")
   "Return the neotree window if it exists, else return nil.
 But when the neotree window does not exist and AUTO-CREATE-P is non-nil,
 it will create the neotree window and return it."
-  (unless (neo-global--window-exists-p)
-    (setf neo-global--window nil))
-  (when (and (null neo-global--window)
-             auto-create-p)
-    (setq neo-global--window
-          (neo-global--create-window)))
-  neo-global--window)
+  (or (neotree-project-window)
+      (when auto-create-p
+        (neotree--create-project-window))))
 
 (defun neo-default-display-fn (buffer _alist)
   "Display BUFFER to the left or right of the root window.
@@ -739,10 +737,12 @@ _ALIST is ignored."
   (let ((window-pos (if (eq neo-window-position 'left) 'left 'right)))
     (display-buffer-in-side-window buffer `((side . ,window-pos)))))
 
-(defun neo-global--create-window ()
+(defun neotree--create-project-window ()
   "Create global neotree window."
   (let ((window nil)
         (buffer (neo-global--get-buffer t)))
+    (unless buffer
+      (user-error "No neotree buffer"))
     (setq window
           (select-window
            (display-buffer buffer neo-display-action)))
@@ -754,15 +754,12 @@ _ALIST is ignored."
 (defun neo-global--get-buffer (&optional init-p)
   "Return the global neotree buffer if it exists.
 If INIT-P is non-nil and global NeoTree buffer not exists, then create it."
-  (unless (equal (buffer-name neo-global--buffer)
-                 neo-buffer-name)
-    (setf neo-global--buffer nil))
-  (when (and init-p
-             (null neo-global--buffer))
-    (save-window-excursion
-      (setq neo-global--buffer
-            (neo-buffer--create))))
-  neo-global--buffer)
+  (let* ((buffer-name (neotree-project-buffer))
+         (buffer (get-buffer buffer-name)))
+    (or buffer
+        (when init-p
+          (save-window-excursion
+            (neo-buffer--create))))))
 
 (defun neo-global--file-in-root-p (path)
   "Return non-nil if PATH in root dir."
@@ -772,15 +769,16 @@ If INIT-P is non-nil and global NeoTree buffer not exists, then create it."
 
 (defun neo-global--alone-p ()
   "Check whether the global neotree window is alone with some other window."
-  (let ((windows (window-list)))
+  (when-let* ((window (neotree-project-window))
+              (windows (window-list)))
     (and (= (length windows)
             2)
-         (member neo-global--window windows))))
+         (member window windows))))
 
 (defun neo-global--do-autorefresh ()
   "Do auto refresh."
   (interactive)
-  (when (and neo-autorefresh (neo-global--window-exists-p)
+  (when (and neo-autorefresh (neotree-project-window)
              (buffer-file-name))
     (neotree-refresh t)))
 
@@ -807,7 +805,7 @@ If INIT-P is non-nil and global NeoTree buffer not exists, then create it."
       (throw 'invalid-path "Invalid path to select."))
     (setq root-dir (if (file-directory-p npath)
                        npath (neo-path--updir npath)))
-    (when (or (not (neo-global--window-exists-p))
+    (when (or (not (neotree-project-window))
               (not (neo-global--file-in-root-p npath)))
       (neo-global--open-dir root-dir))
     (neo-global--with-window
@@ -867,7 +865,7 @@ The description of ARG is in `neotree-enter'."
   (when neo-autorefresh
     (setq neo-global--autorefresh-timer
           (run-with-idle-timer 2 10 'neo-global--do-autorefresh)))
-  (setq neo-global--buffer (get-buffer neo-buffer-name))
+  (setq neo-global--buffer (get-buffer (neotree-project-buffer)))
   (setq neo-global--window (get-buffer-window
                             neo-global--buffer))
   (neo-global--with-buffer
@@ -897,7 +895,7 @@ The description of ARG is in `neotree-enter'."
 (defadvice balance-windows
     (around neotree-balance-windows activate)
   "Fix neotree inhibits balance-windows."
-  (if (neo-global--window-exists-p)
+  (if (neotree-project-window)
       (let (old-width)
         (neo-global--with-window
           (setq old-width (window-width)))
@@ -911,7 +909,7 @@ The description of ARG is in `neotree-enter'."
   '(progn
      (defadvice popwin:create-popup-window
          (around neotree/popwin-popup-buffer activate)
-       (let ((neo-exists-p (neo-global--window-exists-p)))
+       (let ((neo-exists-p (neotree-project-window)))
          (when neo-exists-p
            (neo-global--detach))
          ad-do-it
@@ -921,7 +919,7 @@ The description of ARG is in `neotree-enter'."
 
      (defadvice popwin:close-popup-window
          (around neotree/popwin-close-popup-window activate)
-       (let ((neo-exists-p (neo-global--window-exists-p)))
+       (let ((neo-exists-p (neotree-project-window)))
          (when neo-exists-p
            (neo-global--detach))
          ad-do-it
@@ -1361,8 +1359,7 @@ PATH is value."
 
 (defun neo-buffer--create ()
   "Create and switch to NeoTree buffer."
-  (switch-to-buffer
-   (generate-new-buffer-name neo-buffer-name))
+  (switch-to-buffer (neotree-project-buffer))
   (neotree-mode)
   ;; disable linum-mode
   (when (and (boundp 'linum-mode)
@@ -1815,7 +1812,7 @@ If path is nil and no buffer file name, then use DEFAULT-PATH,"
          (do-open-p nil))
     (if (and (not neo-force-change-root)
              (not (neo-global--file-in-root-p npath))
-             (neo-global--window-exists-p))
+             (neotree-project-window))
         (setq do-open-p (funcall neo-confirm-change-root "File not found in root path, do you want to change root?"))
       (setq do-open-p t))
     (when do-open-p
@@ -2137,7 +2134,7 @@ automatically."
 (defun neotree-toggle ()
   "Toggle show the NeoTree window."
   (interactive)
-  (if (neo-global--window-exists-p)
+  (if (neotree-project-window)
       (neotree-hide)
     (neotree-show)))
 
@@ -2163,7 +2160,7 @@ automatically."
 (defun neotree-hide ()
   "Close the NeoTree window."
   (interactive)
-  (if (neo-global--window-exists-p)
+  (if (neotree-project-window)
       (delete-window neo-global--window)))
 
 ;;;###autoload
@@ -2228,7 +2225,7 @@ which is used to fix issue #209.
 (setq split-window-preferred-function 'neotree-split-window-sensibly)"
   (let ((window (or window (selected-window))))
     (or (split-window-sensibly window)
-        (and (get-buffer-window neo-buffer-name)
+        (and (get-buffer-window (neotree-project-buffer))
              (not (window-minibuffer-p window))
              ;; If WINDOW is the only window on its frame
              ;; (or only include Neo window) and is not the
