@@ -1245,10 +1245,9 @@ Return nil if DIR is not an existing directory."
     image))
 
 (defun neo--nerd-icons-icon-for-dir-with-chevron (dir &optional chevron padding)
-  (let ((icon (nerd-icons-icon-for-dir dir))
-        (chevron (if chevron (nerd-icons-octicon (format "nf-oct-chevron_%s" chevron) :height 1.3 :v-adjust -0.1) ""))
+  (let ((chevron (if chevron (nerd-icons-octicon (format "nf-oct-chevron_%s" chevron) :height 1.3 :v-adjust -0.1) ""))
         (padding (or padding " ")))
-    (format "%s%s%s%s%s" padding chevron padding icon padding)))
+    (format "%s%s%s" padding chevron padding)))
 
 (defun neo-buffer--insert-fold-symbol (name &optional node-name)
   "Write icon by NAME, the icon style affected by neo-theme.
@@ -1286,7 +1285,7 @@ Optional NODE-NAME is used for the `icons' theme"
       (setq-local tab-width 1)
       (or (and (equal name 'open)  (insert (neo--nerd-icons-icon-for-dir-with-chevron (directory-file-name node-name) "down")))
           (and (equal name 'close) (insert (neo--nerd-icons-icon-for-dir-with-chevron (directory-file-name node-name) "right")))
-          (and (equal name 'leaf)  (insert (format "\t\t\t%s " (nerd-icons-icon-for-file node-name :height 1.6 :v-adjust -0.1))))))
+          (and (equal name 'leaf)  (insert (format "\t%s " (nerd-icons-icon-for-file node-name :height 1.6 :v-adjust -0.1))))))
      (t
       (or (and (equal name 'open)  (funcall n-insert-symbol "- "))
           (and (equal name 'close) (funcall n-insert-symbol "+ ")))))))
