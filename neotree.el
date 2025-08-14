@@ -2085,12 +2085,11 @@ If the current node is the first node then the last node is selected."
     (save-excursion
       (let ((cw (selected-window)))  ;; save current window
         (if is-auto-refresh
-            (let ((origin-buffer-file-name (buffer-file-name)))
-              (when (and (fboundp 'projectile-project-p)
-                         (projectile-project-p)
-                         (fboundp 'projectile-project-root))
-                (neo-global--open-dir (projectile-project-root))
-                (neotree-find (projectile-project-root)))
+            (let ((origin-buffer-file-name (buffer-file-name))
+                  (pr (project-current)))
+              (when pr
+                (neo-global--open-dir (project-root pr))
+                (neotree-find (project-root pr)))
               (neotree-find origin-buffer-file-name))
           (neo-buffer--refresh t t))
         (recenter)
@@ -2146,10 +2145,8 @@ automatically."
         (path (buffer-file-name)))  ;; save current window and buffer
     (if neo-smart-open
         (progn
-          (when (and (fboundp 'projectile-project-p)
-                     (projectile-project-p)
-                     (fboundp 'projectile-project-root))
-            (neotree-dir (projectile-project-root)))
+          (when-let* ((pr (project-current)))
+            (neotree-dir (project-root pr)))
           (neotree-find path))
       (neo-global--open))
     (neo-global--select-window)
