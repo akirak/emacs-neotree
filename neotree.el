@@ -1538,6 +1538,7 @@ If SAVE-POS-P is non-nil, it will be auto save current line number."
 
 (defun neo-buffer--post-move ()
   "Reset current directory when position moved."
+  (neo-buffer--align-cursor)
   (funcall
    (neotree-make-executor
     :file-fn
@@ -1651,6 +1652,7 @@ If RECURSIVE-P is non nil, find files will recursively."
         (neo-buffer--set-expand p t))
       (neo-buffer--save-cursor-pos file)
       (neo-buffer--refresh nil)
+      (neo-buffer--align-cursor)
       (when (and neotree-highlight
                  (fboundp 'pulse-momentary-highlight-one-line))
         (pulse-momentary-highlight-one-line)))))
@@ -1667,6 +1669,13 @@ If RECURSIVE-P is non nil, find files will recursively."
     (cd start-path)
     (neo-buffer--save-cursor-pos path nil)
     (neo-buffer--refresh nil)))
+
+(defun neo-buffer--align-cursor ()
+  "Move the cursor to the first non-blank character in the current line.
+
+This is nice for integration with embark."
+  (back-to-indentation)
+  (re-search-forward (rx (any blank)) nil t))
 
 (defun neo-buffer--get-nodes-for-select-down-node (path)
   "Return the node list for the down dir selection."
