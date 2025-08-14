@@ -1013,18 +1013,6 @@ This procedure does not work when CONDP is the `null' function."
 			  (setq r-path (expand-file-name r-path current-dir))
 			  r-path))))
 
-(defun neo-path--shorten (path len)
-  "Shorten a given PATH to a specified LEN.
-This is needed for paths, which are to long for the window to display
-completely.  The function cuts of the first part of the path to remain
-the last folder (the current one)."
-  (let ((result
-         (if (> (length path) len)
-             (concat "<" (substring path (- (- len 2))))
-           path)))
-    (when result
-      (decode-coding-string result 'utf-8))))
-
 (defun neo-path--insert-chroot-button (label path face)
   (insert-button
    label
@@ -1387,7 +1375,8 @@ PATH is value."
   (cond ((eq neo-cwd-line-style 'button)
          (neo-path--insert-header-buttonized node))
         (t
-         (neo-buffer--insert-with-face (neo-path--shorten node (window-body-width))
+         (neo-buffer--insert-with-face (concat " " (file-name-nondirectory
+                                                    (directory-file-name node)))
                                        'neo-root-dir-face)))
   (neo-buffer--newline-and-begin)
   (when neo-show-updir-line
