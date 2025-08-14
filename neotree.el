@@ -804,12 +804,18 @@ If INIT-P is non-nil and global NeoTree buffer not exists, then create it."
     (when (null npath)
       (throw 'invalid-path "Invalid path to select."))
     (setq root-dir (if (file-directory-p npath)
-                       npath (neo-path--updir npath)))
+                       npath
+                     (neotree--project-root npath)))
     (when (or (not (neotree-project-window))
               (not (neo-global--file-in-root-p npath)))
       (neo-global--open-dir root-dir))
     (neo-global--with-window
       (neo-buffer--select-file-node npath t))))
+
+(defun neotree--project-root (path)
+  (if-let ((pr (project-current nil path)))
+      (project-root pr)
+    (neo-path--updir path)))
 
 (defun neo-global--select-mru-window (arg)
   "Create or find a window to select when open a file node.
@@ -1805,10 +1811,14 @@ Optional COUNT argument, moves COUNT lines up."
   "Quick select node which specified PATH in NeoTree.
 If path is nil and no buffer file name, then use DEFAULT-PATH,"
   (interactive)
-  (let* ((ndefault-path (if default-path default-path
-                          (neo-path--get-working-dir)))
-         (npath (if path path
-                  (or (buffer-file-name) ndefault-path)))
+  (let* ((pr (unless default-path
+               (project-current)))
+         (ndefault-path (or default-path
+                            (when pr
+                              (project-root pr))))
+         (npath (or path
+                    (buffer-file-name)
+                    ndefault-path))
          (do-open-p nil))
     (if (and (not neo-force-change-root)
              (not (neo-global--file-in-root-p npath))
