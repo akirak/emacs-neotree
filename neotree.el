@@ -245,6 +245,11 @@ the mode-line format."
   :type 'boolean
   :group 'neotree)
 
+(defcustom neo-dim-gitignored-files t
+  "If non-nil, dim the gitignored files in NeoTree buffers."
+  :type 'boolean
+  :group 'neotree)
+
 (defcustom neo-autorefresh nil
   "*If non-nil, the neotree buffer will auto refresh."
   :type 'boolean
@@ -1402,7 +1407,7 @@ PATH is value."
       node-name))
    (t nil)))
 
-(defun neo-buffer--insert-dir-entry (node depth expanded)
+(defun neo-buffer--insert-dir-entry (node depth expanded status)
   (let ((node-short-name (neo-path--file-short-name node)))
     (insert-char ?\s (* (- depth 1) 2)) ; indent
     (when (memq 'char neo-vc-integration)
@@ -1411,14 +1416,16 @@ PATH is value."
      (if expanded 'open 'close) node)
     (insert-button (if neo-show-slash-for-folder (concat node-short-name "/") node-short-name)
                    'follow-link t
-                   'face neo-dir-link-face
+                   'face (if (eq status 'ignored)
+                             neo-vc-ignored-face
+                           neo-dir-link-face)
                    'neo-full-path node
                    'keymap neotree-dir-button-keymap
                    'help-echo (neo-buffer--help-echo-message node-short-name))
     (neo-buffer--node-list-set nil node)
     (neo-buffer--newline-and-begin)))
 
-(defun neo-buffer--insert-file-entry (node depth)
+(defun neo-buffer--insert-file-entry (node depth status)
   (let ((node-short-name (neo-path--file-short-name node))
         (vc (when neo-vc-integration (neo-vc-for-node node))))
     (insert-char ?\s (* (- depth 1) 2)) ; indent
@@ -1430,7 +1437,9 @@ PATH is value."
                    'follow-link t
                    'face (if (memq 'face neo-vc-integration)
                              (cdr vc)
-                           neo-file-link-face)
+                           (if (eq status 'ignored)
+                               neo-vc-ignored-face
+                             neo-file-link-face))
                    'neo-full-path node
                    'keymap neotree-file-button-keymap
                    'help-echo (neo-buffer--help-echo-message node-short-name))
@@ -1500,7 +1509,7 @@ Return the new expand state for NODE (t for expanded, nil for collapsed)."
 (defun neo-buffer--toggle-expand (node)
   (neo-buffer--set-expand node (not (neo-buffer--expanded-node-p node))))
 
-(defun neo-buffer--insert-tree (path depth)
+(defun neo-buffer--insert-tree (path depth &optional ignored-files status)
   (if (eq depth 1)
       (neo-buffer--insert-root-entry path))
   (let* ((contents (neo-buffer--get-nodes path))
@@ -1508,12 +1517,20 @@ Return the new expand state for NODE (t for expanded, nil for collapsed)."
          (leafs (cdr contents))
          (default-directory path))
     (dolist (node nodes)
-      (let ((expanded (neo-buffer--expanded-node-p node)))
+      (let ((expanded (neo-buffer--expanded-node-p node))
+            (status (or (when (member (file-name-as-directory node)
+                                      ignored-files)
+                          'ignored)
+                        status)))
         (neo-buffer--insert-dir-entry
-         node depth expanded)
-        (if expanded (neo-buffer--insert-tree (concat node "/") (+ depth 1)))))
+         node depth expanded status)
+        (if expanded (neo-buffer--insert-tree (concat node "/") (+ depth 1)
+                                              ignored-files status))))
     (dolist (leaf leafs)
-      (neo-buffer--insert-file-entry leaf depth))))
+      (neo-buffer--insert-file-entry leaf depth
+                                     (or (when (member leaf ignored-files)
+                                           'ignored)
+                                         status)))))
 
 (defun neo-buffer--refresh (save-pos-p &optional non-neotree-buffer)
   "Refresh the NeoTree buffer.
@@ -1532,9 +1549,23 @@ If SAVE-POS-P is non-nil, it will be auto save current line number."
      (neo-buffer--node-list-clear)
      (neo-buffer--insert-banner)
      (setq neo-buffer--start-line neo-header-height)
-     (neo-buffer--insert-tree start-node 1))
+     (neo-buffer--insert-tree start-node 1
+                              (when neo-dim-gitignored-files
+                                (neotree--gitignored-files start-node))))
     ;; restore context
     (neo-buffer--goto-cursor-pos)))
+
+(defun neotree--gitignored-files (start-node)
+  (let* ((root (vc-git-root start-node))
+         (default-directory start-node))
+    (when root
+      (thread-last
+        (process-lines "git" "status" "--porcelain" "--ignored")
+        (mapcar `(lambda (line)
+                   (when (string-match (rx bol "!! " (group (+ nonl))) line)
+                     (concat ,(file-name-as-directory (expand-file-name root))
+                             (match-string 1 line)))))
+        (cl-remove-if #'null)))))
 
 (defun neo-buffer--post-move ()
   "Reset current directory when position moved."
