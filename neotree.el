@@ -272,6 +272,11 @@ the mode-line format."
   :type '(choice (const text)
                  (const button)))
 
+(defcustom neotree-highlight t
+  "If non-nil, highlight the item selected in `neotree-find'."
+  :group 'neotree
+  :type 'boolean)
+
 (defcustom neo-help-echo-style 'default
   "The message NeoTree displays when the mouse moves onto nodes.
 `default' means the node name is displayed if it has a
@@ -1645,7 +1650,10 @@ If RECURSIVE-P is non nil, find files will recursively."
       (dolist (p file-node-list)
         (neo-buffer--set-expand p t))
       (neo-buffer--save-cursor-pos file)
-      (neo-buffer--refresh nil))))
+      (neo-buffer--refresh nil)
+      (when (and neotree-highlight
+                 (fboundp 'pulse-momentary-highlight-one-line))
+        (pulse-momentary-highlight-one-line)))))
 
 (defun neo-buffer--change-root (root-dir)
   "Change the tree root to ROOT-DIR."
