@@ -1808,10 +1808,10 @@ Optional COUNT argument, moves COUNT lines up."
   "Quick select node which specified PATH in NeoTree.
 If path is nil and no buffer file name, then use DEFAULT-PATH,"
   (interactive)
-  (let* ((ndefault-path (if default-path default-path
-                          (neo-path--get-working-dir)))
-         (npath (if path path
-                  (or (buffer-file-name) ndefault-path)))
+  (let* ((npath (or path
+                    (buffer-file-name)
+                    default-path
+                    (neo-path--get-working-dir)))
          (do-open-p nil))
     (if (and (not neo-force-change-root)
              (not (neo-global--file-in-root-p npath))
