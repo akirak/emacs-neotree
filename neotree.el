@@ -38,6 +38,8 @@
 
 (require 'cl-lib)
 
+(declare-function dired-file-name-at-point "dired")
+
 ;;
 ;; Constants
 ;;
@@ -1810,6 +1812,8 @@ If path is nil and no buffer file name, then use DEFAULT-PATH,"
   (interactive)
   (let* ((npath (or path
                     (buffer-file-name)
+                    (when (derived-mode-p 'dired-mode)
+                      (dired-file-name-at-point))
                     default-path
                     (neo-path--get-working-dir)))
          (do-open-p nil))
