@@ -1849,12 +1849,13 @@ If path is nil and no buffer file name, then use DEFAULT-PATH,"
   (interactive)
   (let* ((pr (unless default-path
                (project-current)))
-         (ndefault-path (or default-path
-                            (when pr
-                              (project-root pr))))
          (npath (or path
                     (buffer-file-name)
-                    ndefault-path))
+                    (when (derived-mode-p 'dired-mode)
+                      (dired-file-name-at-point))
+                    default-path
+                    (when pr
+                      (project-root pr))))
          (do-open-p nil))
     (if (and (not neo-force-change-root)
              (not (neo-global--file-in-root-p npath))
